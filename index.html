@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Stock - Cocina</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .btn-press:active { transform: scale(0.97); }
+  </style>
+</head>
+<body class="pb-24">
+
+  <header class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-bold text-amber-400">Stock Cocina</h1>
+      <div id="sync-status" class="text-xs text-slate-400 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span> Conectando a la nube...
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" onclick="deshacerUltima()" id="btn-undo" disabled
+        class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700 disabled:opacity-40 btn-press">
+        ↩ Deshacer
+      </button>
+      <button type="button" onclick="copiarCierreWhatsApp()"
+        class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold btn-press">
+        Cierre WA
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-xl mx-auto p-4 space-y-6">
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm uppercase tracking-wider font-bold text-slate-400">Despachar Plato (Resta Stock)</h2>
+        <button type="button" onclick="abrirModalReceta()" class="text-xs text-amber-400 font-semibold">+ Nuevo Plato</button>
+      </div>
+      <div id="lista-recetas" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm uppercase tracking-wider font-bold text-slate-400">Insumos en Cámara / Freezer</h2>
+        <button type="button" onclick="abrirModalInsumo()" class="text-xs text-amber-400 font-semibold">+ Nuevo Insumo</button>
+      </div>
+      <div id="lista-insumos" class="space-y-2"></div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm uppercase tracking-wider font-bold text-slate-400">Últimos Movimientos</h2>
+        <button type="button" onclick="reiniciarVentasDia()" class="text-xs text-rose-400">Reiniciar ventas del día</button>
+      </div>
+      <div id="lista-historial" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 space-y-1.5 max-h-48 overflow-y-auto">
+        <p class="text-slate-500">Sin movimientos todavía.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-white px-4 py-2.5 rounded-xl text-sm shadow-xl opacity-0 pointer-events-none transition-opacity z-50"></div>
+
+  <div id="modal-insumo" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-40">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm space-y-4">
+      <h3 class="font-bold text-lg text-amber-400">Agregar Insumo</h3>
+      <input id="inp-insumo-nombre" type="text" placeholder="Ej: Fetas de Cheddar" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+      <div class="grid grid-cols-2 gap-2">
+        <input id="inp-insumo-cant" type="number" step="0.01" placeholder="Cantidad (ej: 50)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+        <input id="inp-insumo-unidad" type="text" value="u." placeholder="Unidad (u., kg)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+      </div>
+      <input id="inp-insumo-min" type="number" step="0.01" value="5" placeholder="Alerta stock bajo" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="cerrarModales()" class="px-4 py-2 text-sm text-slate-400">Cancelar</button>
+        <button type="button" onclick="guardarNuevoInsumo()" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-lg text-sm">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-receta" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-40">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm space-y-4">
+      <h3 class="font-bold text-lg text-amber-400">Nuevo Plato / Botón</h3>
+      <input id="inp-receta-nombre" type="text" placeholder="Ej: Hamburguesa Completa" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+      <div id="receta-ingredientes-form" class="space-y-2 max-h-52 overflow-y-auto"></div>
+      <button type="button" onclick="agregarFilaIngrediente()" class="text-xs text-amber-400 font-semibold">+ Agregar otro insumo al plato</button>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="cerrarModales()" class="px-4 py-2 text-sm text-slate-400">Cancelar</button>
+        <button type="button" onclick="guardarNuevaReceta()" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-lg text-sm">Guardar Plato</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCivrsZqrvk6aVrFWixNuaBDkYOa9SYxj0",
+      authDomain: "stock-cocina-bab6a.firebaseapp.com",
+      projectId: "stock-cocina-bab6a",
+      storageBucket: "stock-cocina-bab6a.firebasestorage.app",
+      messagingSenderId: "733941284760",
+      appId: "1:733941284760:web:b303656cd88264cd1b35ed"
+    };
+
+    const datosIniciales = {
+      insumos: [
+        { id: "medallon", nombre: "Medallón de hamburguesa", stock: 28, unidad: "u.", min: 8 },
+        { id: "pan_papa", nombre: "Pan de papa", stock: 11, unidad: "u.", min: 6 },
+        { id: "lomito", nombre: "Lomito", stock: 17, unidad: "u.", min: 6 },
+        { id: "pan_lomito", nombre: "Pan de lomito", stock: 10, unidad: "u.", min: 5 },
+        { id: "noquis", nombre: "Ñoquis", stock: 13, unidad: "u.", min: 5 },
+        { id: "bolonesa", nombre: "Boloñesa", stock: 22, unidad: "u.", min: 6 }
+      ],
+      recetas: [
+        { id: "hamb_simple", nombre: "Hamburguesa Simple", vendidosHoy: 0, items: [{ insumoId: "medallon", cant: 1 }, { insumoId: "pan_papa", cant: 1 }] },
+        { id: "hamb_doble", nombre: "Hamburguesa Doble", vendidosHoy: 0, items: [{ insumoId: "medallon", cant: 2 }, { insumoId: "pan_papa", cant: 1 }] },
+        { id: "lomito_comp", nombre: "Lomito", vendidosHoy: 0, items: [{ insumoId: "lomito", cant: 1 }, { insumoId: "pan_lomito", cant: 1 }] },
+        { id: "noquis_bolo", nombre: "Ñoquis c/ Boloñesa", vendidosHoy: 0, items: [{ insumoId: "noquis", cant: 1 }, { insumoId: "bolonesa", cant: 1 }] },
+        { id: "noquis_solos", nombre: "Ñoquis Solos", vendidosHoy: 0, items: [{ insumoId: "noquis", cant: 1 }] }
+      ],
+      historial: [],
+      ultimaAccion: null
+    };
+
+    let estado = JSON.parse(JSON.stringify(datosIniciales));
+    let db = null;
+    let docRef = null;
+
+    function setSyncStatus(ok, texto) {
+      const el = document.getElementById("sync-status");
+      if (!el) return;
+      el.innerHTML = ok
+        ? `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> ${texto}`
+        : `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ${texto}`;
+    }
+
+    function mostrarToast(msg) {
+      const t = document.getElementById("toast");
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.remove("opacity-0");
+      setTimeout(() => t.classList.add("opacity-0"), 2200);
+    }
+
+    async function guardarEnNube() {
+      if (!db || !docRef) return;
+      try {
+        await setDoc(docRef, estado);
+      } catch (e) {
+        console.error(e);
+        mostrarToast("Aviso: guardado local (revisar Firestore)");
+      }
+    }
+
+    function calcularDisponibles(receta) {
+      if (!receta.items || receta.items.length === 0) return 0;
+      let max = Infinity;
+      for (const item of receta.items) {
+        const ins = estado.insumos.find(i => i.id === item.insumoId);
+        if (!ins) return 0;
+        const pos = Math.floor(ins.stock / item.cant);
+        if (pos < max) max = pos;
+      }
+      return max === Infinity ? 0 : max;
+    }
+
+    function render() {
+      const contRecetas = document.getElementById("lista-recetas");
+      contRecetas.innerHTML = estado.recetas.map(r => {
+        const disp = calcularDisponibles(r);
+        const sinStock = disp <= 0;
+        const desc = r.items.map(it => {
+          const ins = estado.insumos.find(i => i.id === it.insumoId);
+          return `${it.cant} ${ins ? ins.nombre : it.insumoId}`;
+        }).join(" + ");
+        return `
+          <button type="button" onclick="venderPlato('${r.id}')" ${sinStock ? "disabled" : ""}
+            class="text-left p-3.5 rounded-xl border transition btn-press flex flex-col justify-between ${
+              sinStock
+                ? "bg-slate-900/50 border-slate-800 opacity-50 cursor-not-allowed"
+                : "bg-slate-800/90 hover:bg-slate-800 border-slate-700"
+            }">
+            <div class="flex items-start justify-between gap-2">
+              <span class="font-bold text-slate-100 text-sm leading-tight">${r.nombre}</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-bold ${
+                disp <= 3 ? "bg-rose-500/20 text-rose-300" : "bg-emerald-500/20 text-emerald-300"
+              }">Alc. ${disp}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5 line-clamp-1">${desc}</p>
+            <div class="mt-2 pt-2 border-t border-slate-700/60 flex justify-between items-center text-[11px]">
+              <span class="text-amber-400 font-semibold">Hoy: ${r.vendidosHoy || 0}</span>
+              <span class="text-slate-400">Tocar p/ descontar</span>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      const contInsumos = document.getElementById("lista-insumos");
+      contInsumos.innerHTML = estado.insumos.map(ins => {
+        const bajo = ins.stock <= ins.min;
+        return `
+          <div class="bg-slate-900 border ${bajo ? "border-rose-500/50" : "border-slate-800"} rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-sm text-slate-100">${ins.nombre}</span>
+                ${bajo ? `<span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold">BAJO</span>` : ""}
+              </div>
+              <span class="text-xs text-slate-400">Stock actual: <strong class="${bajo ? "text-rose-400" : "text-white"}">${Number(ins.stock.toFixed(2))} ${ins.unidad}</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button type="button" onclick="ajustarInsumo('${ins.id}', -1)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-300 btn-press">-1</button>
+              <button type="button" onclick="ajustarInsumo('${ins.id}', 1)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-emerald-400 btn-press">+1</button>
+              <button type="button" onclick="sumarLote('${ins.id}')" class="px-2.5 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-amber-400 btn-press">+Lote</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const contHist = document.getElementById("lista-historial");
+      if (!estado.historial || estado.historial.length === 0) {
+        contHist.innerHTML = `<p class="text-slate-500">Sin movimientos todavía.</p>`;
+      } else {
+        contHist.innerHTML = estado.historial.slice(0, 20).map(h => `<div>• ${h}</div>`).join("");
+      }
+
+      document.getElementById("btn-undo").disabled = !estado.ultimaAccion;
+    }
+
+    window.venderPlato = async (recetaId) => {
+      const rec = estado.recetas.find(r => r.id === recetaId);
+      if (!rec || calcularDisponibles(rec) <= 0) return;
+      const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      rec.items.forEach(it => {
+        const ins = estado.insumos.find(i => i.id === it.insumoId);
+        if (ins) ins.stock = Math.max(0, Number((ins.stock - it.cant).toFixed(2)));
+      });
+      rec.vendidosHoy = (rec.vendidosHoy || 0) + 1;
+      estado.ultimaAccion = { tipo: "venta", recetaId };
+      estado.historial = [`[${hora}] Venta: ${rec.nombre}`, ...(estado.historial || [])];
+      render();
+      mostrarToast(`Descontado: ${rec.nombre}`);
+      await guardarEnNube();
+    };
+
+    window.deshacerUltima = async () => {
+      const acc = estado.ultimaAccion;
+      if (!acc || acc.tipo !== "venta") return;
+      const rec = estado.recetas.find(r => r.id === acc.recetaId);
+      if (rec) {
+        rec.items.forEach(it => {
+          const ins = estado.insumos.find(i => i.id === it.insumoId);
+          if (ins) ins.stock = Number((ins.stock + it.cant).toFixed(2));
+        });
+        rec.vendidosHoy = Math.max(0, (rec.vendidosHoy || 1) - 1);
+        const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+        estado.historial = [`[${hora}] ↩ Anulado: ${rec.nombre}`, ...(estado.historial || [])];
+      }
+      estado.ultimaAccion = null;
+      render();
+      mostrarToast("Última venta anulada");
+      await guardarEnNube();
+    };
+
+    window.ajustarInsumo = async (insumoId, delta) => {
+      const ins = estado.insumos.find(i => i.id === insumoId);
+      if (!ins) return;
+      ins.stock = Math.max(0, Number((ins.stock + delta).toFixed(2)));
+      const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      estado.historial = [`[${hora}] Ajuste ${ins.nombre}: ${delta > 0 ? "+" + delta : delta}`, ...(estado.historial || [])];
+      render();
+      await guardarEnNube();
+    };
+
+    window.sumarLote = async (insumoId) => {
+      const ins = estado.insumos.find(i => i.id === insumoId);
+      if (!ins) return;
+      const cant = parseFloat(prompt(`¿Cuánto ingresa de ${ins.nombre} (${ins.unidad})?`));
+      if (isNaN(cant) || cant <= 0) return;
+      await ajustarInsumo(insumoId, cant);
+      mostrarToast(`+${cant} ${ins.unidad} de ${ins.nombre}`);
+    };
+
+    window.reiniciarVentasDia = async () => {
+      if (!confirm("¿Poner en 0 los contadores de ventas del día y limpiar el historial?")) return;
+      estado.recetas.forEach(r => r.vendidosHoy = 0);
+      estado.historial = [];
+      estado.ultimaAccion = null;
+      render();
+      await guardarEnNube();
+    };
+
+    function copiarFallback(txt) {
+      const ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-9999px";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, txt.length);
+
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (e) {
+        ok = false;
+      }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    window.copiarCierreWhatsApp = async () => {
+      const fecha = new Date().toLocaleDateString("es-AR");
+      let txt = `*CIERRE DE STOCK COCINA (${fecha})*\n\n*VENDIDO HOY:*\n`;
+      estado.recetas.forEach(r => {
+        if ((r.vendidosHoy || 0) > 0) txt += `• ${r.nombre}: ${r.vendidosHoy}\n`;
+      });
+      txt += `\n*STOCK QUE QUEDA:*\n`;
+      estado.insumos.forEach(i => {
+        txt += `• ${i.nombre}: ${i.stock} ${i.unidad}${i.stock <= i.min ? " ⚠️" : ""}\n`;
+      });
+
+      let copiado = false;
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function" && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(txt);
+          copiado = true;
+        } catch (e) {
+          copiado = copiarFallback(txt);
+        }
+      } else {
+        copiado = copiarFallback(txt);
+      }
+
+      if (copiado) {
+        mostrarToast("Cierre copiado para pegar en WhatsApp");
+      } else {
+        mostrarToast("No se pudo copiar automático en este visor");
+      }
+    };
+
+    window.abrirModalInsumo = () => {
+      const m = document.getElementById("modal-insumo");
+      m.classList.remove("hidden");
+      m.classList.add("flex");
+    };
+
+    window.abrirModalReceta = () => {
+      document.getElementById("receta-ingredientes-form").innerHTML = "";
+      agregarFilaIngrediente();
+      const m = document.getElementById("modal-receta");
+      m.classList.remove("hidden");
+      m.classList.add("flex");
+    };
+
+    window.cerrarModales = () => {
+      ["modal-insumo", "modal-receta"].forEach(id => {
+        const m = document.getElementById(id);
+        m.classList.add("hidden");
+        m.classList.remove("flex");
+      });
+    };
+
+    window.guardarNuevoInsumo = async () => {
+      const nombre = document.getElementById("inp-insumo-nombre").value.trim();
+      const stock = parseFloat(document.getElementById("inp-insumo-cant").value);
+      const unidad = document.getElementById("inp-insumo-unidad").value.trim() || "u.";
+      const min = parseFloat(document.getElementById("inp-insumo-min").value) || 5;
+      if (!nombre || isNaN(stock)) return;
+      estado.insumos.push({ id: "ins_" + Date.now(), nombre, stock, unidad, min });
+      document.getElementById("inp-insumo-nombre").value = "";
+      document.getElementById("inp-insumo-cant").value = "";
+      cerrarModales();
+      render();
+      await guardarEnNube();
+    };
+
+    window.agregarFilaIngrediente = () => {
+      const cont = document.getElementById("receta-ingredientes-form");
+      const opts = estado.insumos.map(i => `<option value="${i.id}">${i.nombre}</option>`).join("");
+      const div = document.createElement("div");
+      div.className = "grid grid-cols-3 gap-2 fila-ing";
+      div.innerHTML = `
+        <select class="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white sel-ins">${opts}</select>
+        <input type="number" step="0.01" value="1" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white inp-cant">
+      `;
+      cont.appendChild(div);
+    };
+
+    window.guardarNuevaReceta = async () => {
+      const nombre = document.getElementById("inp-receta-nombre").value.trim();
+      if (!nombre) return;
+      const filas = document.querySelectorAll(".fila-ing");
+      const items = [];
+      filas.forEach(f => {
+        const insumoId = f.querySelector(".sel-ins").value;
+        const cant = parseFloat(f.querySelector(".inp-cant").value);
+        if (insumoId && cant > 0) items.push({ insumoId, cant });
+      });
+      if (items.length === 0) return;
+      estado.recetas.push({ id: "rec_" + Date.now(), nombre, vendidosHoy: 0, items });
+      document.getElementById("inp-receta-nombre").value = "";
+      cerrarModales();
+      render();
+      await guardarEnNube();
+    };
+
+    // Renderiza de entrada para que los botones siempre respondan
+    render();
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      docRef = doc(db, "cocina", "estado_actual");
+
+      onSnapshot(docRef, async (snap) => {
+        if (snap.exists()) {
+          estado = snap.data();
+          setSyncStatus(true, "Sincronizado en vivo");
+          render();
+        } else {
+          await setDoc(docRef, datosIniciales);
+          setSyncStatus(true, "Base inicializada");
+        }
+      }, (err) => {
+        console.error(err);
+        setSyncStatus(false, "Revisar reglas de Firestore");
+      });
+    } catch (e) {
+      console.error(e);
+      setSyncStatus(false, "Modo sin conexión");
+    }
+  </script>
+</body>
+</html>
